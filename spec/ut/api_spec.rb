@@ -1,11 +1,6 @@
 require 'spec_helper'
 
 describe Grape::API do
-  subject {
-    Class.new(Grape::API) do |variable|
-      rescue_from :all
-    end
-  }
 
   let(:v1_app) {
     Class.new(Grape::API) do
@@ -29,13 +24,23 @@ describe Grape::API do
     end
   }
 
+  subject {
+    # Needed to expose these on-the-fly classes to the inside block
+    _v1_app = v1_app
+    _v2_app = v2_app
+
+    Class.new(Grape::API) do
+      mount _v1_app
+      mount _v2_app
+      rescue_from :all
+    end
+  }
+
   def app
-    subject.mount v1_app
-    subject.mount v2_app
     subject
   end
 
-  context "with header versioned endpoints and a rescue_all block defined" do
+  context 'with header versioned endpoints and a rescue_all block defined' do
     it 'responds correctly to a v1 request' do
       versioned_get '/users/hello', 'v1', using: :header, vendor: 'test'
       expect(last_response.body).to eq('one')
@@ -48,5 +53,4 @@ describe Grape::API do
       expect(last_response.body).not_to include('API vendor or version not found')
     end
   end
-
 end
