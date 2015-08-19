@@ -149,54 +149,52 @@ describe Grape::Exceptions::InvalidAcceptHeader do
     end
   end
 
-  context 'API with cascade=true and rescue_from :all handler and an endpoint with different versions' do
-    subject { Class.new(Grape::API) }
-    before do
-      subject.version 'v99', using: :header, vendor: 'vendorname', format: :json, cascade: true
-      subject.rescue_from :all do |e|
-        rack_response 'message was processed', 400, e[:headers]
+  context 'API with rescue_from :all handler and an endpoint with different mounted versions' do
+    subject {
+      Class.new(Grape::API) do |variable|
+        rescue_from :all
       end
-      subject.get '/beer' do
-        'beer received'
-      end
-      subject.version 'v100', using: :header, vendor: 'vendorname', format: :json, cascade: true do
-        get '/beer' do
-          'newer beer received'
+    }
+
+    let(:v1_app) {
+      Class.new(Grape::API) do
+        version 'v1', using: :header, vendor: 'test'
+        resources :users do
+          get :hello do
+            'one'
+          end
         end
       end
-    end
+    }
+
+    let(:v2_app) {
+      Class.new(Grape::API) do
+        version 'v2', using: :header, vendor: 'test'
+        resources :users do
+          get :hello do
+            'two'
+          end
+        end
+      end
+    }
 
     def app
+      subject.mount v1_app
+      subject.mount v2_app
       subject
     end
 
-    context 'that received a request with the older vendor and version' do
-      before { get '/beer', {}, 'HTTP_ACCEPT' => 'application/vnd.vendorname-v99' }
-      it_should_behave_like 'a valid request'
-    end
-
-    context 'that received a request with the newer vendor and version' do
-      before { get '/beer', {}, 'HTTP_ACCEPT' => 'application/vnd.vendorname-v100' }
-      it "should behave like a valid request" do
-        expect(last_response.status).to eq 200
-        expect(last_response.body).to eq('newer beer received')
+    context "with header versioned endpoints and a rescue_all block defined" do
+      it 'responds correctly to a v1 request' do
+        versioned_get '/users/hello', 'v1', using: :header, vendor: 'test'
+        expect(last_response.body).to eq('one')
+        expect(last_response.body).not_to include('API vendor or version not found')
       end
-    end
 
-    context 'that receives' do
-      context 'an invalid version in the request' do
-        before do
-          get '/beer', {}, 'HTTP_ACCEPT' => 'application/vnd.vendorname-v77',
-                           'CONTENT_TYPE' => 'application/json'
-        end
-        it_should_behave_like 'a cascaded request'
-      end
-      context 'an invalid vendor in the request' do
-        before do
-          get '/beer', {}, 'HTTP_ACCEPT' => 'application/vnd.invalidvendor-v99',
-                           'CONTENT_TYPE' => 'application/json'
-        end
-        it_should_behave_like 'a cascaded request'
+      it 'responds correctly to a v2 request' do
+        versioned_get '/users/hello', 'v2', using: :header, vendor: 'test'
+        expect(last_response.body).to eq('two')
+        expect(last_response.body).not_to include('API vendor or version not found')
       end
     end
   end
