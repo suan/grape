@@ -58,7 +58,7 @@ module Grape
             fail Grape::Exceptions::InvalidAcceptHeader.new('406 Not Acceptable', error_headers)
           # If all acceptable content types specify a vendor or version that doesn't exist:
           elsif header.values.all? { |header_value| has_vendor?(header_value) || version?(header_value) }
-            fail Grape::Exceptions::InvalidAcceptHeader.new('API vendor or version not found.', error_headers)
+            throw :error, status: 406, headers: error_headers, message: 'API vendor or version not found.'
           end
         end
 
